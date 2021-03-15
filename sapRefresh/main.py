@@ -4,24 +4,28 @@ Created on 3/8/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
-
-import logging
+import os
+import sys
 
 import pandas as pd   # Library for data manipulation
-import psutil as psutil
 
 from sapRefresh.Core import Connection as Conn
 from sapRefresh.Core.Time import SpinnerCursor
 from sapRefresh.Refresh import Engine as Xl
 from sapRefresh.Refresh import Sap
 
-# initiate log instance
-format_string = 'Time:%(asctime)s | Process:%(process)d - %(processName)s | Name:%(name)s | Module:%(module)s | ' \
-                'Function:%(funcName)s | Levelname:%(levelname)s | Message:%(message)s'
-logging.basicConfig(filename='Logs/app.log', filemode='w', format=format_string)
+current_path = os.path.abspath('.')
+parent_path = os.path.dirname(current_path)
+sys.path.append(parent_path)
+
+from sapRefresh.Core.base_logger import get_logger
+logger = get_logger(__name__)
 
 
 def main():
+    # kill every excel instance so that further erros cannot happen
+    Xl.kill_excel_instances()
+
     # get configuration values
     config_values = Conn.get_config_values()
 
@@ -49,18 +53,7 @@ def main():
     # initial calculation
     ExcelInstance.Application.Calculate()
 
-    try:
-        data_source = Xl.get_data_source(ExcelInstance)
-    except BaseException as e:  # to catch pywintypes.error
-        if e.args[0] == -2147352567:
-            print("The script couldn't access SAP AfO VBA functions.")  # todo: print this info in a WARNING log
-
-            # todo: create here a situation to handle this problem
-            for proc in psutil.process_iter():
-                if proc.name().lower() == "excel.exe":
-                    proc.kill()
-        else:
-            raise e
+    data_source = Xl.get_data_source(ExcelInstance)
 
     result_logon = Sap.sap_logon(ExcelInstance,
                                  data_source['DS'],
@@ -72,7 +65,9 @@ def main():
 
     data_source = Sap.sap_get_more_info(ExcelInstance, data_source)
 
-    ####################################################################################################################
+    # ---------------------------------------------------------------------------
+    #   Tests related to variables, filters and dimensions
+    # ---------------------------------------------------------------------------
 
     list_variables = ExcelInstance.Application.Run("SAPListOfVariables", data_source['DS'], "INPUT_STRING", "PROMPTS")
 
@@ -101,7 +96,9 @@ def main():
     for value in test_arnold:
         print(value)
 
-    ####################################################################################################################
+    # ---------------------------------------------------------------------------
+    #   End of tests
+    # ---------------------------------------------------------------------------
 
     result_refresh_data = Sap.sap_refresh_data(ExcelInstance, data_source['DS'])
 
@@ -118,7 +115,9 @@ def main():
     ExcelInstance.Application.Quit()
     del ExcelInstance
 
-    ####################################################################################################################
+    # ---------------------------------------------------------------------------
+    #   End of refresh operation
+    # ---------------------------------------------------------------------------
 
     # start waiting spinner
     print('\nStarting to import the result to pandas\n')
@@ -127,7 +126,7 @@ def main():
 
     # use Pandas Library to query Excel Data
     df = pd.read_excel(
-        config_values['filename'],
+        config_values['filepath'],
         sheet_name=data_source['Sheet'],
         engine='openpyxl',
         skiprows=0,
@@ -143,7 +142,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+        logger.info("The Workbook refresh was done successfully!")
+    except Exception as e:
+        logger.critical(f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})")
+
 
 # create a log class
 # create a TryAgain decorator to SAP functions

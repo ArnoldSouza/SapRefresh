@@ -6,8 +6,25 @@ Email: arnoldporto@gmail.com
 """
 import win32com.client as win32
 from win32com.client import constants as cst
+import psutil as psutil
 
 from sapRefresh.Core.Time import timeit
+from sapRefresh.Core.base_logger import get_logger
+logger = get_logger(__name__)
+
+
+def kill_excel_instances():
+    """
+    sometimes the VBA functions cannot be called because of unknown reasons
+    and error message is displayed warning that the desired function is not available
+    usually an excel instance is running and can be seen using task manager
+    when the excel task is ended everything comes back to normal
+    so this step kills every Excel process in order to save the script
+    """
+    for proc in psutil.process_iter():
+        if proc.name().lower() == "excel.exe":
+            logger.warning("An running Excel instance was found. The script is going to kill it as a sanity check procedure.")
+            proc.kill()
 
 
 def open_excel():
@@ -79,12 +96,17 @@ def calculation_state(xl_Instance, action, state=None):
 def get_data_source(xl_Instance):
     """get data information about SAP AfO objects"""
     values = dict()
-    (
-        values['CrossTabSource'],
-        values['CrossTabName'],
-        values['DS']
-    ) = xl_Instance.Application.Run("SAPListOf", "CROSSTABS")
-
+    try:
+        (
+            values['CrossTabSource'],
+            values['CrossTabName'],
+            values['DS']
+        ) = xl_Instance.Application.Run("SAPListOf", "CROSSTABS")
+    except BaseException as e:  # to catch pywintypes.error
+        if e.args[0] == -2147352567:
+            RuntimeError("The script couldn't access SAP AfO VBA functions. This usually is related to Excel instances running uncontrolled in the OS.")
+        else:
+            raise e
     values['Sheet'] = xl_Instance.ActiveWorkbook.Names("SAP" + values['CrossTabSource']).RefersToRange.Parent.Name
     values['Crosstab'] = "SAP" + values['CrossTabSource']
     return values

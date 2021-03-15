@@ -4,10 +4,18 @@ Created on 3/8/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
+from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
+
 from sapRefresh.Core.Cripto import secret_decode
 from sapRefresh.Core.Time import timeit
 
+import logging
+from sapRefresh.Core.base_logger import get_logger
+logger = get_logger(__name__)
 
+
+@retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG),
+       stop=stop_after_attempt(3))
 @timeit
 def sap_logon(xl_Instance, source, client, user, password):
     """API method to trigger a logon to a system for a specified data source"""
