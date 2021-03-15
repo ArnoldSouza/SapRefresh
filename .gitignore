@@ -1,1 +1,4 @@
 /sapRefresh/Logs/*
+/sapRefresh/Workbooks/*
+/sapRefresh/app_config.ini
+/.idea/

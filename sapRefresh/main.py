@@ -9,14 +9,14 @@ import sys
 
 import pandas as pd   # Library for data manipulation
 
+current_path = os.path.abspath('.')
+parent_path = os.path.dirname(current_path)
+sys.path.append(parent_path)
+
 from sapRefresh.Core import Connection as Conn
 from sapRefresh.Core.Time import SpinnerCursor
 from sapRefresh.Refresh import Engine as Xl
 from sapRefresh.Refresh import Sap
-
-current_path = os.path.abspath('.')
-parent_path = os.path.dirname(current_path)
-sys.path.append(parent_path)
 
 from sapRefresh.Core.base_logger import get_logger
 logger = get_logger(__name__)
@@ -149,7 +149,4 @@ if __name__ == '__main__':
         logger.critical(f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})")
 
 
-# create a log class
-# create a TryAgain decorator to SAP functions
 # change variable value
-# handle error when Excel instances are opened
