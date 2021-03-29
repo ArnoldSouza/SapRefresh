@@ -7,8 +7,10 @@ Email: arnoldporto@gmail.com
 import os
 import sys
 import pathlib
+from datetime import date
 
 import pandas as pd
+from halo import Halo
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 
 MODULE_CURRENT_PATH = os.path.abspath('.')
@@ -16,14 +18,14 @@ MODULE_PARENT_PATH = os.path.dirname(MODULE_CURRENT_PATH)
 sys.path.append(MODULE_PARENT_PATH)
 
 from sapRefresh.Core import Connection as Conn
-from sapRefresh.Core.Time import timeit
+from sapRefresh.Core.Time import timeit, get_time_intelligence
 from sapRefresh.Refresh import Engine as Xl
 from sapRefresh.Refresh import Sap
 
 # configure the log object
 import logging
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH, global_configs_df  # import info from the __init__ file
+from sapRefresh import LOG_PATH, global_configs_df, CONFIG_PATH  # import info from the __init__ file
 logger = get_logger(__name__, LOG_PATH)
 
 
@@ -56,6 +58,8 @@ class SapRefresh:
         self.is_logged = None
         self.is_refreshed = None
         self.is_refreshed_data = None
+        self.state_refresh_behavior = None
+        self.state_variable_submit = None
         # List of all variables and filters in the data source
         self.variables_filters = None
 
@@ -94,7 +98,7 @@ class SapRefresh:
         self.source = self.data_source['DS']  # set source to a property for the easy access it
         print('\n', 'data source retrieved', '\n', self.data_source)
 
-    def logon(self):
+    def logon(self, source=None):
         """
         Logon into the SAP AfO System. The logon is file dependent. That's because you need to refer the
         data source to connect to SAP. It uses the source of the get_data_source method.
@@ -103,6 +107,8 @@ class SapRefresh:
         client = self.global_configs.query('description=="logon-client"')['value'].values[0]
         user = self.global_configs.query('description=="logon-user"')['value'].values[0]
         password = self.global_configs.query('description=="logon-password"')['value'].values[0]
+        if source is not None:
+            self.source = source
         # execute the logon method
         self.is_logged = Sap.sap_logon(self.ExcelInstance, self.source, client, user, password)
 
@@ -223,6 +229,51 @@ class SapRefresh:
         state_connection = Sap.sap_is_connected(self.ExcelInstance, self.source)
         return state_connection
 
+    def set_refresh_variables(self, variables_list):
+        print('Starting to set the variables:')
+        self.state_refresh_behavior = self.ExcelInstance.Application.Run("SAPSetRefreshBehaviour", "Off")
+        self.state_variable_submit = self.ExcelInstance.Application.Run("SAPExecuteCommand", "PauseVariableSubmit", "On")
+        for index, variable in variables_list.iterrows():
+            print('\t', f'Trying to set [{variable.field_name}] to [{variable.value}] ', end='')
+            self.ExcelInstance.Application.Run(
+                variable.command,
+                variable.field,
+                variable.value,
+                "INPUT_STRING",
+                variable.data_source)
+            print('Ok!')
+        # start waiting spinner
+        spinner = Halo(text='Loading', spinner='dots')
+        spinner.start()
+        # refresh data with new variable values
+        self.state_variable_submit = self.ExcelInstance.Application.Run("SAPExecuteCommand", "PauseVariableSubmit", "Off")
+        self.state_refresh_behavior = self.ExcelInstance.Application.Run("SAPSetRefreshBehaviour", "On")
+        # stop waiting spinner
+        spinner.succeed('End!')
+        print('The variables were set properly')
+
+    def set_refresh_filters(self, df_filters):
+        print('Starting to set the filters:')
+        self.state_refresh_behavior = self.ExcelInstance.Application.Run("SAPSetRefreshBehaviour", "Off")
+        for index, filter_item in df_filters.iterrows():
+            print('\t', f'Trying to set [{filter_item.field_name}] to [{filter_item.value}] ', end='')
+            self.ExcelInstance.Application.Run(
+                filter_item.command,
+                filter_item.data_source,
+                filter_item.field,
+                filter_item.value,
+                "INPUT_STRING"
+            )
+            print('Ok!')
+        # start waiting spinner
+        spinner = Halo(text='Loading', spinner='dots')
+        spinner.start()
+        # refresh data with new variable values
+        self.state_refresh_behavior = self.ExcelInstance.Application.Run("SAPSetRefreshBehaviour", "On")
+        # stop waiting spinner
+        spinner.succeed('End!')
+        print('The filters were set properly')
+
 
 def get_report_information(filepath):
     """function to collect variables and filters of a report given a filepath"""
@@ -240,6 +291,36 @@ def get_report_information(filepath):
     SapReport.close()
 
 
+def refresh_report(filename, data_sources, variables_filters):
+    """execute the flow necessary to refresh de desired report"""
+    # initiate workbook
+    SapReport = SapRefresh()
+    # configure path
+    data_directory = pathlib.Path(global_configs_df.query('description=="path-data_directory"')['value'].values[0])
+    file_target = data_directory / filename
+    # open de SAP AfO report
+    SapReport.open_report(file_target)
+    SapReport.calculate()
+    # collect data sources
+    current_source = data_sources.query(f'filename=="{filename}"')['data_source'].values[0]
+    # logging on
+    SapReport.logon(current_source)
+    # do initial data refresh
+    SapReport.refresh_data()
+    # replace dynamic values in the parameters
+    dict_time_values = get_time_intelligence()
+    # start to deal with filters
+    df_filters = variables_filters.query(f'filename=="{filename}" and command=="SAPSetFilter"').replace({"value": dict_time_values})
+    if not df_filters.empty:
+        SapReport.set_refresh_filters(df_filters)
+    # start to deal with variables
+    df_variables = variables_filters.query(f'filename=="{filename}" and command=="SAPSetVariable"').replace({"value": dict_time_values})
+    if not df_variables.empty:
+        SapReport.set_refresh_variables(df_variables)
+    # save and close the report
+    SapReport.close()
+
+
 def collect_information():
     """collect al data source information of the reports that are the the \Data_refresh directory"""
     data_directory = pathlib.Path(global_configs_df.query('description=="path-data_directory"')['value'].values[0])
@@ -252,9 +333,22 @@ def collect_information():
         print(f'finished extraction from {file}')
 
 
+def refresh_auto_reports():
+    """function to automate the refresh of reports based on the parameters set in config file"""
+    _, data_sources, variables_filters = get_configurations(CONFIG_PATH)
+    # change the dynamic days in the sources
+    today = date.today().day
+    data_sources['refresh'] = data_sources['refresh'].apply(lambda x: 'Y' if x >= today or x == 99 else 'N')
+    # start to refresh the reports
+    for filename in data_sources.query('refresh=="Y"').filename:  # execute command only to valid rows
+        print(f'Starting to refresh the reports: [{filename}]')
+        refresh_report(filename, data_sources, variables_filters)
+        print(f'Finished the refreshing of: [{filename}]')
+
+
 if __name__ == '__main__':
     try:
-        collect_information()
+        refresh_auto_reports()
         logger.info("The Workbook refresh was done successfully!")
     except Exception as e:
         logger.critical(f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})")

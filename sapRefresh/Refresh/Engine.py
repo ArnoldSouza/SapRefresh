@@ -28,7 +28,7 @@ def kill_excel_instances():
     """
     for proc in psutil.process_iter():
         if proc.name().lower() == "excel.exe":
-            logger.warning("An running Excel instance was found. The script is going to kill it as a sanity check procedure.")
+            print("A running Excel instance was found. The script is going to kill it as a sanity check procedure.")
             proc.kill()
 
 

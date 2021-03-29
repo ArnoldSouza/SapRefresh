@@ -8,6 +8,9 @@ import functools
 from datetime import datetime
 import time
 
+from datetime import date
+from dateutil.relativedelta import relativedelta
+
 from halo import Halo  # spinners for long running methods in terminal
 
 
@@ -54,3 +57,17 @@ class SpinnerCursor(object):
     def stop(self):
         """stop the animation of cursor"""
         self.spinner.succeed('End!')
+
+
+def get_time_intelligence():
+    """get all the time intelligence references variables to the application"""
+    values = dict()
+    values['current_period'] = date.today()
+    delta = relativedelta(months=-1)
+    values['previous_period'] = values['current_period'] + delta
+    values['year_current_period'] = values['current_period'].year
+    values['year_previous_period'] = values['previous_period'].year
+    values['range_current_month'] = '{} - {}'.format(values['current_period'].month, values['current_period'].month)
+    values['range_previous_month'] = '{} - {}'.format(values['previous_period'].month, values['previous_period'].month)
+    values['key_date'] = values['current_period'].strftime("%d.%m.%Y")
+    return values
