@@ -26,7 +26,7 @@ from sapRefresh.Refresh import Sap
 import logging
 from sapRefresh.Core.base_logger import get_logger
 from sapRefresh import LOG_PATH, global_configs_df, CONFIG_PATH  # import info from the __init__ file
-logger = get_logger(__name__, LOG_PATH)
+logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
 
 
 @retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG), stop=stop_after_attempt(3))
@@ -266,6 +266,7 @@ class SapRefresh:
             )
             print('Ok!')
         # start waiting spinner
+        print('Start to refresh the data with the new restrictions')
         spinner = Halo(text='Loading', spinner='dots')
         spinner.start()
         # refresh data with new variable values
@@ -319,6 +320,9 @@ def refresh_report(filename, data_sources, variables_filters):
         SapReport.set_refresh_variables(df_variables)
     # save and close the report
     SapReport.close()
+    # send email
+    mail_msg = f'Relatorio atualizado -> {str(file_target)}'
+    Conn.send_email(mail_msg, 'SUCCESS', 'SAP Refresh - Refresh Reports')
 
 
 def collect_information():
@@ -330,7 +334,7 @@ def collect_information():
         print(f'Starting to extract info from {file}')
         file_target = data_directory / file
         get_report_information(file_target)  # execute the data source extraction
-        print(f'finished extraction from {file}')
+        print(f'finished extraction from {file}', '\n')
 
 
 def refresh_auto_reports():
@@ -351,4 +355,8 @@ if __name__ == '__main__':
         refresh_auto_reports()
         logger.info("The Workbook refresh was done successfully!")
     except Exception as e:
+        # send error to the logger
         logger.critical(f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})")
+        # send error by email
+        msg_mail = f"Couldn't refresh the data. ({e.args[0]} | {e.args[1]})"
+        Conn.send_email(msg_mail, 'ERROR', 'SAP Refresh')
