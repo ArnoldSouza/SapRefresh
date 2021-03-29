@@ -33,7 +33,7 @@ def get_logger(logger_name, log_path):
     logfile_handler.setFormatter(logFormatter)
     logger.addHandler(logfile_handler)
 
-    return logger
+    return logger, location
 
 # Log some messages
 # logger.debug("Debug message")

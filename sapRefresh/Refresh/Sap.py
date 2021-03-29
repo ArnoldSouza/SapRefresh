@@ -12,7 +12,7 @@ from sapRefresh.Core.Time import timeit
 import logging
 from sapRefresh.Core.base_logger import get_logger
 from sapRefresh import LOG_PATH
-logger = get_logger(__name__, LOG_PATH)
+logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
 
 
 @retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG), stop=stop_after_attempt(3))

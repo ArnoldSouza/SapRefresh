@@ -9,14 +9,18 @@ from os import listdir
 from os.path import isfile, join
 from pathlib import Path
 import configparser
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from datetime import datetime
 
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 
 import logging
-
+from Core.Cripto import secret_decode
 from sapRefresh.Core.base_logger import get_logger
-from sapRefresh import LOG_PATH
-logger = get_logger(__name__, LOG_PATH)
+from sapRefresh import LOG_PATH, global_configs_df
+logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
 
 
 def get_config_values(config_file='app_config.ini'):
@@ -62,3 +66,53 @@ def search_directory(data_directory):
         if filename[-4:].lower() == 'xlsx':
             list_files.append(filename)
     return list_files
+
+
+def send_email(message_string, status_string, process_string):  #filepath_string, log_path_string, status_string, process_string):
+    """Function to send communications via email"""
+    # calculated fields
+    log_path_string = str(LOG_FILEPATH)
+    datetime_string = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
+    subject_string = f'PYTHON AUTOMATE ({status_string}) - [{process_string}] - {datetime_string}'
+    # email configurations
+    smtp_server = global_configs_df.query('description=="mail-server"')['value'].values[0]
+    port = global_configs_df.query('description=="mail-port"')['value'].values[0]
+    sender_email = global_configs_df.query('description=="mail-user_name"')['value'].values[0]
+    password = secret_decode(global_configs_df.query('description=="mail-password"')['value'].values[0])
+    receiver_email = (global_configs_df.query('description=="mail-to"')['value'].values[0]).split(',')
+    # elaborate the email message
+    msg_email = f"""\
+    Ola,
+
+    Segue o status do processo [{process_string}]:
+
+        STATUS: {status_string}
+        DATA / HORA: {datetime_string}
+        MENSAGEM: {message_string}
+        DIRETORIO LOG: {log_path_string}
+
+    @2021 GBS Latam - Hydro
+    """
+    # construct email message
+    message = MIMEText(msg_email)
+    message['subject'] = subject_string
+    message['from'] = sender_email
+    message['to'] = global_configs_df.query('description=="mail-to"')['value'].values[0]
+    # Create a secure SSL context
+    context = ssl.create_default_context()
+    # log in to server and send email
+    server = smtplib.SMTP(smtp_server, port)
+    server.ehlo()  # Can be omitted
+    server.starttls(context=context)  # Secure the connection
+    server.ehlo()  # Can be omitted
+    server.login(sender_email, password)
+    # Statement to send email
+    server.sendmail(sender_email, receiver_email, message.as_string())
+    server.quit()
+
+
+if __name__ == '__main__':
+    filepath_str = r'C:\teste\alguma_pasta\algum_arquivo.xlsx'
+    status_str = 'SUCCESS'
+    process_str = 'SAP Refresh'
+    send_email(filepath_str, status_str, process_str)

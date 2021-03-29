@@ -23,3 +23,9 @@ def secret_decode(token):
     f = Fernet(key)
     value = f.decrypt(token.encode('utf-8')).decode('utf-8')
     return value
+
+
+if __name__ == '__main__':
+    string_test_encode = 'message_secret'
+    secret_string = secret_encode(string_test_encode)
+    print(secret_string)

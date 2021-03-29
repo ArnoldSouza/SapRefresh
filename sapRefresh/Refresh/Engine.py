@@ -15,7 +15,7 @@ from sapRefresh.Core.Time import timeit
 import logging
 from sapRefresh.Core.base_logger import get_logger
 from sapRefresh import LOG_PATH
-logger = get_logger(__name__, LOG_PATH)
+logger, LOG_FILEPATH = get_logger(__name__, LOG_PATH)
 
 
 def kill_excel_instances():
