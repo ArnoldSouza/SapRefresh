@@ -4,18 +4,22 @@ Created on 3/14/2021
 Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
-__author__ = 'Arnold Souza'
-__email__ = 'arnoldporto@gmail.com'
+import pathlib
 
-__title__ = "sapRefresh"
-__summary__ = (
-    "A python script to refresh SAP Analysis for Office Excel Workbooks"
-)
-__uri__ = "https://github.com/ArnoldSouza/SapRefresh"
+import pandas as pd
 
-__version__ = "1.0.0"
+from Core.Time import timeit
 
-__license__ = None  # "BSD or Apache License, Version 2.0"
-__copyright__ = "Copyright 2021 {}".format(__author__)
+CONFIG_PATH = r'\\branapv-sql01\DIGITAL_TRANSFORMATION\Python\Config\config.xlsx'
 
-version_info = tuple([int(num) for num in __version__.split('.')])
+
+@timeit
+def import_global_configurations(config_location):
+    """import all the necessary information so that the script can work well"""
+    df_global_configs = pd.read_excel(config_location, sheet_name='global_configs')
+    path_log = pathlib.Path(df_global_configs.query('description=="path-log_directory"')['value'].values[0])
+    return df_global_configs, path_log
+
+
+# import global configurations
+global_configs_df, LOG_PATH = import_global_configurations(CONFIG_PATH)

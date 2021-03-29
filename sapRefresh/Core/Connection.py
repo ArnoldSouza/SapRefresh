@@ -5,17 +5,18 @@ Author: Arnold Souza
 Email: arnoldporto@gmail.com
 """
 import socket
-import functools
-import time
-import sys
+from os import listdir
+from os.path import isfile, join
 from pathlib import Path
 import configparser
 
 from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 
 import logging
+
 from sapRefresh.Core.base_logger import get_logger
-logger = get_logger(__name__)
+from sapRefresh import LOG_PATH
+logger = get_logger(__name__, LOG_PATH)
 
 
 def get_config_values(config_file='app_config.ini'):
@@ -51,3 +52,13 @@ def check_connection(host, port, timeout=3):
         print(f"The server {host}:{port} is reachable")
     except socket.error as ex:
         raise RuntimeError(f"Error! Couldn't connect to {host}:{port}. Exception:", ex)
+
+
+def search_directory(data_directory):
+    """search the directory for excel files to be refreshed"""
+    onlyfiles = [f for f in listdir(data_directory) if isfile(join(data_directory, f))]
+    list_files = []
+    for filename in onlyfiles:
+        if filename[-4:].lower() == 'xlsx':
+            list_files.append(filename)
+    return list_files

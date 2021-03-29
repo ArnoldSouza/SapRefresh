@@ -2,3 +2,5 @@
 /sapRefresh/Workbooks/*
 /sapRefresh/app_config.ini
 /.idea/
+/References/
+/sapRefresh/tests.ipynb

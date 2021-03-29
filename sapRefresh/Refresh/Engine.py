@@ -6,11 +6,16 @@ Email: arnoldporto@gmail.com
 """
 import win32com.client as win32
 from win32com.client import constants as cst
+
+from tenacity import retry, wait_fixed, before_sleep_log, stop_after_attempt
 import psutil as psutil
 
 from sapRefresh.Core.Time import timeit
+
+import logging
 from sapRefresh.Core.base_logger import get_logger
-logger = get_logger(__name__)
+from sapRefresh import LOG_PATH
+logger = get_logger(__name__, LOG_PATH)
 
 
 def kill_excel_instances():
@@ -33,6 +38,7 @@ def open_excel():
     return xl_Instance
 
 
+@retry(reraise=True, wait=wait_fixed(10), before_sleep=before_sleep_log(logger, logging.DEBUG), stop=stop_after_attempt(3))
 @timeit
 def open_workbook(xl_Instance, path):
     """

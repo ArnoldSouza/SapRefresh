@@ -31,7 +31,7 @@ def timeit(func):
         end_time = time.perf_counter()  # 2
         run_time = end_time - start_time  # 3
         if run_time < 60:
-            print(f"Finished {func.__name__!r} in {run_time:.4f} seconds\n")
+            print(f"Finished {func.__name__!r} in {run_time:.2f} seconds\n")
         if 60 <= run_time < 3600:
             run_time = run_time / 60  # converts to minutes
             print(f"Finished {func.__name__!r} in {run_time:.1f} minutes\n")
@@ -53,4 +53,4 @@ class SpinnerCursor(object):
 
     def stop(self):
         """stop the animation of cursor"""
-        self.spinner.start()
+        self.spinner.succeed('End!')
