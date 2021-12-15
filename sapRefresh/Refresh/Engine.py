@@ -52,6 +52,9 @@ def open_workbook(xl_Instance, path):
 
 @timeit
 def ensure_addin(xl_Instance):
+    """In order to kill Excel popup we can hit enter"""
+    shell = win32.client.Dispatch("WScript.Shell")
+    shell.SendKeys("{ENTER}")
     """Force the plugin to be enabled in the instance of Excel"""
     for addin in xl_Instance.Application.COMAddIns:
         if addin.progID == 'SapExcelAddIn':
